@@ -46,13 +46,15 @@
 #'   their approximate standard errors.}
 #'  \item{vcov}{Variance-covariance matrix of parameter estimates.}
 #'  \item{log_Lik}{The log-likelihood value at convergence.}
+#'  \item{N}{Number of units.}
+#'  \item{J}{Number of items.}
 #'  \item{H}{A vector denoting the number of response categories for each item.}
+#'  \item{ylevels}{A list showing the levels of the factorized response categories.}
 #'  \item{p}{The number of predictors for the mean equation.}
 #'  \item{q}{The number of predictors for the variance equation.}
-#'  \item{item_names}{Names of items.}
+#'  \item{control}{List of control values.}
 #'  \item{call}{The matched call.}
-#' @references Zhou, Xiang. 2018. "Hierarchical Item Response Models for Analyzing Public Opinion."
-#'   Working Paper.
+#' @references Zhou, Xiang. 2019. "\href{https://doi.org/10.1017/pan.2018.63}{Hierarchical Item Response Models for Analyzing Public Opinion.}" Political Analysis.
 #' @importFrom rms lrm.fit
 #' @importFrom pryr compose
 #' @importFrom pryr partial
@@ -78,13 +80,18 @@ hgrm <- function(y, x, z, beta_set = 1, sign_set = TRUE, control = list()) {
     y <- as.data.frame(y)
     N <- nrow(y)
     J <- ncol(y)
-    for (j in seq(1, J)) y[[j]] <- fac2int(y[[j]])
+    yl <- vector(mode = "list", length = J)
+    for (j in seq(1, J)) {
+      tmp <- factor(y[[j]], exclude = c(NA, NaN))
+      yl[[j]] <- levels(tmp)
+      y[[j]] <- as.integer(tmp)
+    }
     tmp <- match(TRUE, vapply(y, invalid_grm, logical(1L)))
     if (!is.na(tmp))
       stop(paste(names(y)[tmp], "does not have at least two valid responses"))
     # if(max(y, na.rm = TRUE)==2)
     #   stop("All items are dichotomous. Use 'hltm' ")
-    H <- vapply(y, max, numeric(1), na.rm = TRUE)
+    H <- vapply(y, max, numeric(1L), na.rm = TRUE)
 
     # check x and z (x and z should contain an intercept column)
     if (missing(x)) x <- as.matrix(rep(1, N))
@@ -153,6 +160,8 @@ hgrm <- function(y, x, z, beta_set = 1, sign_set = TRUE, control = list()) {
             df[["y"]], weights = df[["wt"]])[["coefficients"]])
         beta <- vapply(pseudo_lrm, function(x) x[length(x)], numeric(1L))
         alpha <- lapply(pseudo_lrm, function(x) c(Inf, x[-length(x)], -Inf))
+
+        # EAP and VAP estimates of latent preferences
         theta_eap <- t(theta_ls %*% w)
         theta_vap <- t(theta_ls^2 %*% w) - theta_eap^2
 
@@ -202,14 +211,15 @@ hgrm <- function(y, x, z, beta_set = 1, sign_set = TRUE, control = list()) {
         # check convergence
         if (sqrt(sum((beta - beta_prev)^2)) < con[["eps"]]) {
             cat("\n converged at iteration", iter, "\n")
-            gamma <- setNames(gamma, paste("x", colnames(x), sep = "_"))
-            lambda <- setNames(lambda, paste("z", colnames(z), sep = "_"))
             break
         } else if (iter == con[["max_iter"]]) {
             stop("algorithm did not converge; try increasing max_iter.")
             break
         } else next
     }
+
+    gamma <- setNames(as.numeric(gamma), paste("x", colnames(x), sep = "_"))
+    lambda <- setNames(as.numeric(lambda), paste("z", colnames(z), sep = "_"))
 
     # inference
     pik <- matrix(unlist(Map(partial(dnorm, x = theta_ls), mean = fitted_mean,
@@ -227,11 +237,11 @@ hgrm <- function(y, x, z, beta_set = 1, sign_set = TRUE, control = list()) {
     environment(sj_ab_grm) <- environment(si_gamma) <- environment(si_lambda) <- environment()
     s_ab <- unname(Reduce(rbind, lapply(1:J, sj_ab_grm)))
     s_lambda <- s_gamma <- NULL
-    if (p > 1)
-        s_gamma <- vapply(1:N, si_gamma, numeric(p - 1))
-    if (q > 1)
-        s_lambda <- vapply(1:N, si_lambda, numeric(q - 1))
-    s_all <- rbind(s_ab, s_gamma, s_lambda)
+    s_gamma <- vapply(1:N, si_gamma, numeric(p))
+    s_lambda <- vapply(1:N, si_lambda, numeric(q))
+
+    # covariance matrix and standard errors
+    s_all <- rbind(s_ab[-c(1L, nrow(s_ab)), , drop = FALSE], s_gamma, s_lambda)
     s_all[is.na(s_all)] <- 0
     covmat <- solve(tcrossprod(s_all))
     se_all <- sqrt(diag(covmat))
@@ -239,20 +249,18 @@ hgrm <- function(y, x, z, beta_set = 1, sign_set = TRUE, control = list()) {
     # reorganize se_all
     sH <- sum(H)
     lambda_indices <- gamma_indices <- NULL
-    if (p > 1)
-        gamma_indices <- (sH + 1):(sH + p - 1)
-    if (q > 1)
-        lambda_indices <- (sH + p):(sH + p + q - 2)
-    se_all <- c(se_all[1:sH], NA, se_all[gamma_indices], NA, se_all[lambda_indices])
+    gamma_indices <- (sH - 1):(sH + p - 2)
+    lambda_indices <- (sH + p - 1):(sH + p + q - 2)
+    se_all <- c(NA, se_all[1:(sH-2)], NA, se_all[gamma_indices], se_all[lambda_indices])
 
     # name se_all and covmat
     names_ab <- unlist(lapply(names(alpha), function(x) {
-        tmp <- alpha[[x]]
-        paste(x, c(names(tmp)[-c(1, length(tmp))], "Dscrmn"))
+      tmp <- alpha[[x]]
+      paste(x, c(names(tmp)[-c(1L, length(tmp))], "Dscrmn"))
     }))
     names(se_all) <- c(names_ab, names(gamma), names(lambda))
-    rownames(covmat) <- colnames(covmat) <- c(names_ab, names(gamma)[-1L],
-        names(lambda)[-1L])
+    rownames(covmat) <- colnames(covmat) <- c(names_ab[-c(1L, length(names_ab))],
+                                              names(gamma), names(lambda))
 
     # item coefficients
     coef_item <- Map(function(a, b) c(a[-c(1L, length(a))], Dscrmn = b), alpha, beta)
@@ -260,7 +268,7 @@ hgrm <- function(y, x, z, beta_set = 1, sign_set = TRUE, control = list()) {
     # all coefficients
     coef_all <- c(unlist(coef_item), gamma, lambda)
     coefs <- data.frame(Estimate = coef_all, Std_Error = se_all, z_value = coef_all/se_all,
-        p_value = 2 * (1 - pnorm(abs(coef_all/se_all))))
+                        p_value = 2 * (1 - pnorm(abs(coef_all/se_all))))
     rownames(coefs) <- names(se_all)
 
     # ability parameter estimates
@@ -268,7 +276,7 @@ hgrm <- function(y, x, z, beta_set = 1, sign_set = TRUE, control = list()) {
 
     # output
     out <- list(coefficients = coefs, scores = theta, vcov = covmat, log_Lik = log_Lik,
-        H = H, p = p, q = q, item_names = names(y), call = cl)
+                N = N, J = J, H = H, ylevels = yl, p = p, q = q, control = con, call = cl)
     class(out) <- c("hgrm", "hIRT")
     out
 }

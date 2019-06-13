@@ -52,10 +52,13 @@ An object of class \code{hltm}.
   their approximate standard errors.}
  \item{vcov}{Variance-covariance matrix of parameter estimates.}
  \item{log_Lik}{The log-likelihood value at convergence.}
- \item{J}{The number of items.}
+ \item{N}{Number of units.}
+ \item{J}{Number of items.}
+ \item{H}{A vector denoting the number of response categories for each item.}
+ \item{ylevels}{A list showing the levels of the factorized response categories.}
  \item{p}{The number of predictors for the mean equation.}
  \item{q}{The number of predictors for the variance equation.}
- \item{item_names}{Names of items.}
+ \item{control}{List of control values.}
  \item{call}{The matched call.}
 }
 \description{
@@ -80,6 +83,5 @@ nes_m1 <- hltm(y_bin, x, z)
 print(nes_m1)
 }
 \references{
-Zhou, Xiang. 2017. "Hierarchical Item Response Models for Analyzing Public Opinion."
-  Working Paper.
+Zhou, Xiang. 2019. "\href{https://doi.org/10.1017/pan.2018.63}{Hierarchical Item Response Models for Analyzing Public Opinion.}" Political Analysis.
 }
