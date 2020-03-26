@@ -1,6 +1,10 @@
 # check if a vector is dichotomous
 invalid_ltm <- function(x) max(x, na.rm = TRUE) != 1
 
+glm_fit <- function(x, y, weights, tol = 1e-16, ...){
+    glm.fit(x[weights>tol, , drop = FALSE], y[weights>tol], weights = weights[weights>tol], ...)
+}
+
 # log likelihood function (return N * J matrix) y: N*J data frame alpha:
 # length J numeric vector beta: length J numeric vector theta: length N
 # numeric vector
@@ -34,7 +38,7 @@ dummy_fun_ltm <- function(y_j) {
 tab2df_ltm <- function(tab, theta_ls) {
     theta <- rep(theta_ls, 2)
     y <- rep(c(0, 1), each = K)
-    data.frame(y = factor(y), x = theta, wt = as.vector(tab))
+    data.frame(y = factor(y), x = theta, wt = as.double(tab))
 }
 
 # derivative of likelihood wrt alpha, given theta_k
@@ -46,7 +50,7 @@ dalpha_ltm <- function(alpha, beta) {
 # score function of alpha and beta (return a N*2 matrix) Lik: N*K matrix
 # pik: N*K matrix alpha: J-vector beta: J-vector theta_ls: K-vector
 sj_ab_ltm <- function(j) {
-    tmp_mat <- (pik * Lik/vapply(Lijk, `[`, 1:N, j, FUN.VALUE = numeric(N)))  # N*K matrix
+    tmp_mat <- (pik * Lik/vapply(Lijk, `[`, 1:N, j, FUN.VALUE = double(N)))  # N*K matrix
     dalpha_j <- dalpha[, j, drop = FALSE]  # K*1 matrix
     dbeta_j <- dalpha_j * theta_ls  # K*1 matrix
     sgn <- .subset2(y, j) * 2 - 1
