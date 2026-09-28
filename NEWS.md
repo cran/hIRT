@@ -1,9 +1,11 @@
-# hIRT 0.3.0
+# hIRT 0.4.0
 
-* added README.md illustrating package usage
-* added the constr parameter in hgrm() and hltm()
-* added the hgrm2() and hltm2() functions
-* deleted the predict_hIRT() function
+* Removed dependency on the archived package pryr; function composition is now done in base R.
+* Added `hgrmDIF()` for differential item functioning in the graded response model.
+
+# hIRT 0.3.1
+
+* fixed bug in README.md
 
 
 

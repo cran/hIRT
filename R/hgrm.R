@@ -33,7 +33,7 @@
 #'   EM algorithm. Specifically, iterations continue until the Euclidean
 #'   distance between \eqn{\beta_{n}} and \eqn{\beta_{n-1}} falls under \code{eps},
 #'   where \eqn{\beta} is the vector of item discrimination parameters.
-#'   \code{eps}=1e-4 by default.}
+#'   \code{eps}=1e-3 by default.}
 #'  \item{max_iter2}{The maximum number of iterations of the conditional
 #'    maximization procedures for updating \eqn{\gamma} and \eqn{\lambda}.
 #'    The default is 15.}
@@ -42,8 +42,10 @@
 #'    \eqn{\lambda}. Specifically, iterations continue until the Euclidean
 #'   distance between two consecutive log likelihoods falls under \code{eps2}.
 #'   \code{eps2}=1e-3 by default.}
-#'  \item{K}{Number of Gauss-Legendre quadrature points for the E-step. The default is 21.}
-#'  \item{C}{[-C, C] sets the range of integral in the E-step. \code{C}=3 by default.}
+#'  \item{K}{Number of Gauss-Legendre quadrature points for the E-step. The default is 25.}
+#'  \item{C}{[-C, C] sets the range of integral in the E-step. \code{C}=4 by default.}
+#'  \item{verbose}{Logical. Should the progress of the EM algorithm be printed
+#'   to the console? \code{FALSE} by default.}
 #' }
 #'
 #' @return An object of class \code{hgrm}.
@@ -61,10 +63,8 @@
 #'  \item{q}{The number of predictors for the variance equation.}
 #'  \item{control}{List of control values.}
 #'  \item{call}{The matched call.}
-#' @references Zhou, Xiang. 2019. "\href{https://doi.org/10.1017/pan.2018.63}{Hierarchical Item Response Models for Analyzing Public Opinion.}" Political Analysis.
+#' @references Zhou, Xiang. 2019. "Hierarchical Item Response Models for Analyzing Public Opinion." Political Analysis. \doi{10.1017/pan.2018.63}
 #' @importFrom rms lrm.fit
-#' @importFrom pryr compose
-#' @importFrom pryr partial
 #' @importFrom ltm grm
 #' @importFrom ltm ltm
 #' @import stats
@@ -120,7 +120,8 @@ hgrm <- function(y, x = NULL, z = NULL, constr = c("latent_scale", "items"),
   init <- match.arg(init)
 
   # control parameters
-  con <- list(max_iter = 150, max_iter2 = 15, eps = 1e-03, eps2 = 1e-03, K = 25, C = 4)
+  con <- list(max_iter = 150, max_iter2 = 15, eps = 1e-03, eps2 = 1e-03, K = 25, C = 4,
+              verbose = FALSE)
   con[names(control)] <- control
 
   # set environments for utility functions
@@ -187,7 +188,7 @@ hgrm <- function(y, x = NULL, z = NULL, constr = c("latent_scale", "items"),
     # maximization
     pseudo_tab <- Map(dummy_fun_grm, y, H)
     pseudo_y <- lapply(pseudo_tab, tab2df_grm, theta_ls = theta_ls)
-    pseudo_lrm <- lapply(pseudo_y, function(df) lrm_fit(df[["x"]], df[["y"]], weights = df[["wt"]])[["coefficients"]])
+    pseudo_lrm <- lapply(pseudo_y, function(df) lrm_fit(df["x"], df[["y"]], weights = df[["wt"]])[["coefficients"]])
     beta <- vapply(pseudo_lrm, function(x) x[[length(x)]], double(1L))
     alpha <- lapply(pseudo_lrm, function(x) c(Inf, x[-length(x)], -Inf))
 
@@ -229,7 +230,7 @@ hgrm <- function(y, x = NULL, z = NULL, constr = c("latent_scale", "items"),
     beta <- beta * exp(tmp/2)
     lambda[[1L]] <- lambda[[1L]] - tmp
 
-    # direction contraint
+    # direction constraint
     if (sign_set == (beta[[beta_set]] < 0)) {
       gamma <- -gamma
       beta <- -beta
@@ -240,11 +241,11 @@ hgrm <- function(y, x = NULL, z = NULL, constr = c("latent_scale", "items"),
     # cat(beta, "\n")
     # cat(abs(beta - beta_prev), "\n")
 
-    cat(".")
+    if (con[["verbose"]]) cat(".")
 
     # check convergence
     if (sqrt(mean((beta - beta_prev)^2)) < con[["eps"]]) {
-      cat("\n converged at iteration", iter, "\n")
+      if (con[["verbose"]]) cat("\n converged at iteration", iter, "\n")
       break
     } else if (iter == con[["max_iter"]]) {
       stop("algorithm did not converge; try increasing `max_iter` or decreasing `eps`")
@@ -256,10 +257,10 @@ hgrm <- function(y, x = NULL, z = NULL, constr = c("latent_scale", "items"),
   lambda <- setNames(as.double(lambda), paste("z", colnames(z), sep = ""))
 
   # inference
-  pik <- matrix(unlist(Map(partial(dnorm, x = theta_ls), mean = fitted_mean, sd = sqrt(fitted_var))),
+  pik <- matrix(unlist(Map(function(mean, sd) dnorm(theta_ls, mean = mean, sd = sd), mean = fitted_mean, sd = sqrt(fitted_var))),
                 N, K, byrow = TRUE) * matrix(qw_ls, N, K, byrow = TRUE)
   Lijk <- lapply(theta_ls, function(theta_k) exp(loglik_grm(alpha = alpha, beta = beta, rep(theta_k, N))))  # K-list
-  Lik <- vapply(Lijk, compose(exp, partial(rowSums, na.rm = TRUE), log), double(N))
+  Lik <- vapply(Lijk, function(L) exp(rowSums(log(L), na.rm = TRUE)), double(N))
   Li <- rowSums(Lik * pik)
 
   # log likelihood

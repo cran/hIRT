@@ -24,8 +24,6 @@
 #'  \item{control}{List of control values.}
 #'  \item{call}{The matched call.}
 #' @importFrom rms lrm.fit
-#' @importFrom pryr compose
-#' @importFrom pryr partial
 #' @import stats
 #' @export
 #' @examples
@@ -100,7 +98,8 @@ hltm2 <- function(y, x = NULL, z = NULL, item_coefs, control = list()) {
   colnames(z) <- colnames(z) %||% paste0("x", 1:q)
 
   # control parameters
-  con <- list(max_iter = 150, max_iter2 = 15, eps = 1e-03, eps2 = 1e-03, K = 25, C = 4)
+  con <- list(max_iter = 150, max_iter2 = 15, eps = 1e-03, eps2 = 1e-03, K = 25, C = 4,
+              verbose = FALSE)
   con[names(control)] <- control
 
   # set environments for utility functions
@@ -182,11 +181,11 @@ hltm2 <- function(y, x = NULL, z = NULL, item_coefs, control = list()) {
 
     fitted_mean <- as.double(x %*% gamma)
     fitted_var <- exp(as.double(z %*% lambda))
-    cat(".")
+    if (con[["verbose"]]) cat(".")
 
     # check convergence
     if (sqrt(mean((gamma/gamma_prev - 1)^2)) < con[["eps"]]) {
-      cat("\n converged at iteration", iter, "\n")
+      if (con[["verbose"]]) cat("\n converged at iteration", iter, "\n")
       break
     } else if (iter == con[["max_iter"]]) {
       stop("algorithm did not converge; try increasing max_iter.")
@@ -198,10 +197,10 @@ hltm2 <- function(y, x = NULL, z = NULL, item_coefs, control = list()) {
   lambda <- setNames(as.double(lambda), paste("z", colnames(z), sep = ""))
 
   # inference
-  pik <- matrix(unlist(Map(partial(dnorm, x = theta_ls), mean = fitted_mean, sd = sqrt(fitted_var))),
+  pik <- matrix(unlist(Map(function(mean, sd) dnorm(theta_ls, mean = mean, sd = sd), mean = fitted_mean, sd = sqrt(fitted_var))),
                 N, K, byrow = TRUE) * matrix(qw_ls, N, K, byrow = TRUE)
   Lijk <- lapply(theta_ls, function(theta_k) exp(loglik_ltm(alpha = alpha, beta = beta, rep(theta_k, N))))  # K-list
-  Lik <- vapply(Lijk, compose(exp, partial(rowSums, na.rm = TRUE), log), double(N))
+  Lik <- vapply(Lijk, function(L) exp(rowSums(log(L), na.rm = TRUE)), double(N))
   Li <- rowSums(Lik * pik)
 
   # log likelihood
