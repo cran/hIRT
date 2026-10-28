@@ -1,7 +1,7 @@
 Package: hIRT
 Type: Package
 Title: Hierarchical Item Response Theory Models
-Version: 0.4.0
+Version: 0.5.0
 Authors@R: person("Xiang", "Zhou", email = "xiang_zhou@fas.harvard.edu",
   role = c("aut", "cre"))
 Description: Implementation of a class of hierarchical item response
@@ -12,17 +12,19 @@ Description: Implementation of a class of hierarchical item response
   algorithm. Asymptotic standard errors are derived from the observed information
   matrix. See Zhou (2019) <doi:10.1017/pan.2018.63> for details.
 Depends: R (>= 3.4.0), stats
-Imports: rms (>= 5.1-1), ltm (>= 1.1-1), Matrix (>= 1.2-10)
-Suggests: ggplot2
+Imports: Rcpp (>= 1.0.0), rms (>= 5.1-1), ltm (>= 1.1-1), Matrix (>=
+        1.2-10)
+Suggests: ggplot2, testthat (>= 3.0.0)
+LinkingTo: Rcpp, RcppArmadillo
 License: GPL (>= 3)
 Encoding: UTF-8
 LazyData: true
 RoxygenNote: 7.3.3
 URL: https://github.com/xiangzhou09/hIRT
 BugReports: https://github.com/xiangzhou09/hIRT/issues
-NeedsCompilation: no
-Packaged: 2026-09-28 14:08:41 UTC; Xiang
+NeedsCompilation: yes
+Packaged: 2026-10-28 23:00:57 UTC; Xiang
 Author: Xiang Zhou [aut, cre]
 Maintainer: Xiang Zhou <xiang_zhou@fas.harvard.edu>
 Repository: CRAN
-Date/Publication: 2026-09-28 14:50:02 UTC
+Date/Publication: 2026-10-28 23:20:02 UTC
